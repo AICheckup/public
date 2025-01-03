@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Checkup</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        #diagnosisResult, #hospitalsResult {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        #hospitalsResult ul {
+            list-style: none;
+            padding: 0;
+        }
+        #hospitalsResult li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Checkup</h1>
+
+    <div>
+        <label for="symptoms">Please describe your symptoms:</label>
+        <textarea id="symptoms" rows="5"></textarea>
+        <button id="submitSymptoms">Submit Symptoms</button>
+    </div>
+
+    <div id="diagnosisResult">
+        <h2>Diagnosis Result:</h2>
+        <p id="diagnosis"></p>
+        <p id="probabilities"></p>
+        <p id="advice"></p>
+    </div>
+
+    <div>
+        <button id="getLocation">Get My Location</button>
+        <p id="locationStatus"></p> 
+    </div>
+
+    <div id="hospitalsResult">
+        <h2>Nearby Hospitals:</h2>
+        <ul id="hospitals"></ul>
+    </div>
+
+    <script>
+        const symptomsTextarea = document.getElementById("symptoms");
+        const submitSymptomsButton = document.getElementById("submitSymptoms");
+        const diagnosisResultDiv = document.getElementById("diagnosisResult");
+        const diagnosisParagraph = document.getElementById("diagnosis");
+        const probabilitiesParagraph = document.getElementById("probabilities");
+        const adviceParagraph = document.getElementById("advice");
+        const getLocationButton = document.getElementById("getLocation");
+        const locationStatusParagraph = document.getElementById("locationStatus");
+        const hospitalsResultDiv = document.getElementById("hospitalsResult");
+        const hospitalsList = document.getElementById("hospitals");
+
+        submitSymptomsButton.addEventListener("click", () => {
+            const symptoms = symptomsTextarea.value;
+            fetch('/diagnose', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ symptoms: symptoms })
+            })
+            .then(response => response.json())
+            .then(data => {
+                diagnosisResultDiv.style.display = "block";
+                diagnosisParagraph.textContent = "Diagnosis: " + data.diagnosis;
+                probabilitiesParagraph.textContent = "Probabilities: " + JSON.stringify(data.probabilities);
+                adviceParagraph.textContent = "Advice: " + data.advice.advice;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                diagnosisResultDiv.style.display = "block";
+                diagnosisParagraph.textContent = "An error occurred. Please try again.";
+            });
+        });
+
+        getLocationButton.addEventListener("click", () => {
+            locationStatusParagraph.textContent = "Getting location...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                locationStatusParagraph.textContent = "Geolocation is not supported by this browser.";
+            }
+        });
+
+        function showPosition(position) {
+            locationStatusParagraph.textContent = "Location obtained. Searching for hospitals...";
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            // Send location to the server and get nearby hospitals
+            fetch('/find_hospitals', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ location: `${latitude},${longitude}` })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hospitalsResultDiv.style.display = "block";
+                hospitalsList.innerHTML = ""; // Clear previous list
+                if (data.hospitals.length > 0) {
+                    data.hospitals.forEach(hospital => {
+                        const li = document.createElement("li");
+                        li.textContent = `${hospital.name} - ${hospital.address} (${hospital.distance} km away)`;
+                        hospitalsList.appendChild(li);
+                    });
+                } else {
+                    const li = document.createElement("li");
+                    li.textContent = "No hospitals found nearby.";
+                    hospitalsList.appendChild(li);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hospitalsResultDiv.style.display = "block";
+                hospitalsList.innerHTML = "<li>An error occurred. Please try again.</li>";
+            });
+        }
+
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    locationStatusParagraph.textContent = "User denied the request for Geolocation."
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    locationStatusParagraph.textContent = "Location information is unavailable."
+                    break;
+                case error.TIMEOUT:
+                    locationStatusParagraph.textContent = "The request to get user location timed out."
+                    break;
+                case error.UNKNOWN_ERROR:
+                    locationStatusParagraph.textContent = "An unknown error occurred."
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>
