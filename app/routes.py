@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from app.models import DiagnosisModel  # Import the DiagnosisModel class
-from app.utils import get_health_advice, find_nearby_hospitals  # Import the utility functions
+from app.models import DiagnosisModel
+from app.utils import get_health_advice, find_nearby_hospitals
 
 # Create a Blueprint for the routes
 bp = Blueprint('routes', __name__)
@@ -10,7 +10,7 @@ try:
     model = DiagnosisModel(model_path="diagnosis_model.joblib")
 except Exception as e:
     print(f"Error loading model: {e}")
-    model = None  # Set model to None if loading fails
+    model = None
 
 # Diagnosis endpoint
 @bp.route('/diagnose', methods=['POST'])
@@ -35,6 +35,8 @@ def diagnose():
 
             # Get health advice based on the diagnosis
             advice = get_health_advice(diagnosis)
+            if advice is None:
+                advice = {"advice": "Please consult a doctor for further advice.", "source": "AI Checkup"}
 
             return jsonify({"diagnosis": diagnosis, "probabilities": probabilities, "advice": advice})
         else:
