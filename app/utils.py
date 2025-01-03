@@ -1,8 +1,27 @@
-# Placeholder for database interaction (replace with your actual database implementation)
+import os
+import psycopg2
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 class Database:
     """
-    A dummy class representing a database for health advice and medical institutions.
+    Handles database operations.
     """
+    def __init__(self):
+        """
+        Initializes the database connection.
+        """
+        self.conn = psycopg2.connect(
+            host=os.environ.get("DB_HOST"),
+            database=os.environ.get("DB_NAME"),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PASSWORD")
+        )
+        self.cur = self.conn.cursor()
+
     def get_advice(self, diagnosis):
         """
         Retrieves health advice based on the diagnosis from the database.
@@ -11,47 +30,130 @@ class Database:
             diagnosis (str): The diagnosis.
 
         Returns:
-            dict: A dictionary containing dummy health advice and its source.
+            dict: Health advice and its source, or None if not found.
         """
-        # Replace this with actual database query
-        if diagnosis == "Dummy Diagnosis":
-            return {"advice": "Dummy Health Advice: Stay hydrated and rest.", "source": "WHO"}
-        else:
-            return {"advice": "Dummy Health Advice: Consult a doctor if symptoms persist.", "source": "Local Health Authority"}
+        try:
+            self.cur.execute("SELECT advice, source FROM health_advice WHERE diagnosis = %s", (diagnosis,))
+            result = self.cur.fetchone()
+            if result:
+                return {"advice": result[0], "source": result[1]}
+            else:
+                return None
+        except Exception as e:
+            print(f"Error retrieving health advice: {e}")
+            return None
 
-    def find_hospitals(self, location):
+    def find_hospitals(self, latitude, longitude):
         """
         Finds nearby medical institutions based on the location.
 
         Args:
-            location (str): The location.
+            latitude (float): The latitude of the location.
+            longitude (float): The longitude of the location.
 
         Returns:
-            list: A list of dictionaries containing dummy medical institution information.
+            list: List of nearby medical institutions, or an empty list if none found or an error occurred.
         """
-        # Replace this with actual database query or API call
-        return [{"name": "Dummy Hospital A", "address": "Address A", "distance": 1.2},
-                {"name": "Dummy Hospital B", "address": "Address B", "distance": 2.5}]
+        # This is a placeholder for a more complex query that might involve
+        # calculating distances and filtering based on proximity.
+        # For now, it just returns a list of all hospitals in the database.
+        try:
+            self.cur.execute("SELECT name, address, latitude, longitude FROM hospitals")
+            results = self.cur.fetchall()
+            hospitals = []
+            for result in results:
+                hospitals.append({
+                    "name": result[0],
+                    "address": result[1],
+                    "latitude": result[2],
+                    "longitude": result[3],
+                    # In a real application, you'd calculate the distance
+                    "distance": 0  # Placeholder for distance calculation
+                })
+            return hospitals
+        except Exception as e:
+            print(f"Error retrieving hospitals: {e}")
+            return []
 
-# Placeholder for external API interaction (replace with your actual API implementation)
+    def close(self):
+        """
+        Closes the database connection.
+        """
+        self.cur.close()
+        self.conn.close()
+
 class ExternalAPI:
     """
-    A dummy class representing an external API for medical information.
+    Handles interactions with external APIs.
     """
-    def get_medical_info(self, query):
+    def __init__(self):
         """
-        Retrieves medical information from an external API.
+        Initializes the API client.
+        """
+        self.api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+
+    def get_geocode(self, address):
+        """
+        Converts an address to geographic coordinates using Google Geocoding API.
 
         Args:
-            query (str): The query string.
+            address (str): The address to geocode.
 
         Returns:
-            dict: Dummy medical information.
+            tuple: Latitude and longitude of the address, or None if an error occurred.
         """
-        # Replace this with actual API call
-        return {"info": f"Dummy medical info for {query}", "source": "External API"}
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={self.api_key}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            data = response.json()
+            if data['status'] == 'OK':
+                location = data['results'][0]['geometry']['location']
+                return location['lat'], location['lng']
+            else:
+                print(f"Geocoding API error: {data['status']}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"Error during Geocoding API request: {e}")
+            return None
+        
 
-# Instantiate the database and API (replace with your actual instances)
+    def find_nearby_hospitals(self, latitude, longitude, radius=5000):
+        """
+        Finds nearby hospitals using Google Places API.
+
+        Args:
+            latitude (float): The latitude of the location.
+            longitude (float): The longitude of the location.
+            radius (int): The search radius in meters.
+
+        Returns:
+            list: List of nearby hospitals, or an empty list if none found or an error occurred.
+        """
+        url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={latitude},{longitude}&radius={radius}&type=hospital&key={self.api_key}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            if data['status'] == 'OK':
+                hospitals = []
+                for result in data['results']:
+                    hospitals.append({
+                        "name": result['name'],
+                        "address": result['vicinity'],
+                        "latitude": result['geometry']['location']['lat'],
+                        "longitude": result['geometry']['location']['lng'],
+                        "place_id": result['place_id']
+                    })
+                return hospitals
+            else:
+                print(f"Places API error: {data['status']}")
+                return []
+        except requests.exceptions.RequestException as e:
+            print(f"Error during Places API request: {e}")
+            return []
+
+# Instantiate the database and API
 db = Database()
 api = ExternalAPI()
 
@@ -72,9 +174,7 @@ def find_nearby_hospitals(location):
     Finds nearby medical institutions based on the location.
 
     Args:
-        location (str): The location.
+        location (str): The location (latitude,longitude).
 
     Returns:
-        list: List of nearby medical institutions from the database or a dummy list.
-    """
-    return db.find_hospitals(location)
+        list: List of nearby medical institutions from
