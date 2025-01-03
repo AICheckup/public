@@ -1,57 +1,64 @@
 from flask import Blueprint, request, jsonify
-# from app.main import diagnose_symptoms, get_health_advice, find_nearby_hospitals  # Import the dummy functions from main.py (commented out for now)
+from app.models import DiagnosisModel  # Import the DiagnosisModel class
+from app.utils import get_health_advice, find_nearby_hospitals  # Import the utility functions
 
 # Create a Blueprint for the routes
 bp = Blueprint('routes', __name__)
 
+# Load the trained model (replace 'diagnosis_model.joblib' with your actual model path if different)
+try:
+    model = DiagnosisModel(model_path="diagnosis_model.joblib")
+except Exception as e:
+    print(f"Error loading model: {e}")
+    model = None  # Set model to None if loading fails
+
 # Diagnosis endpoint
 @bp.route('/diagnose', methods=['POST'])
 def diagnose():
-  """
-  Endpoint to receive symptoms, and return diagnosis results and advice.
+    """
+    Endpoint to receive symptoms, and return diagnosis results and advice.
 
-  Returns:
-      JSON: Diagnosis and advice in JSON format.
-  """
-  try:
-    data = request.get_json()
-    symptoms = data['symptoms']
+    Returns:
+        JSON: Diagnosis and advice in JSON format.
+    """
+    try:
+        data = request.get_json()
+        symptoms = data['symptoms']
 
-    # Multilingual support will be considered here (e.g., using a translation API)
-    # Currently, it assumes English symptoms
+        # Multilingual support will be considered here (e.g., using a translation API)
+        # Currently, it assumes English symptoms
 
-    # Call the dummy diagnosis and advice functions (replace with actual functions later)
-    # diagnosis = diagnose_symptoms(symptoms)
-    # advice = get_health_advice(diagnosis['diagnosis'])
+        if model:
+            # Get the diagnosis from the model
+            diagnosis = model.predict(symptoms)
+            probabilities = model.predict_proba(symptoms)
 
-    # Currently, it returns dummy diagnosis and advice
-    diagnosis = {"diagnosis": "Dummy Diagnosis", "confidence": 0.8}
-    advice = {"advice": "Dummy Health Advice", "source": "WHO"}
+            # Get health advice based on the diagnosis
+            advice = get_health_advice(diagnosis)
 
-    return jsonify({"diagnosis": diagnosis, "advice": advice})
-  except Exception as e:
-    return jsonify({"error": str(e)}), 500
+            return jsonify({"diagnosis": diagnosis, "probabilities": probabilities, "advice": advice})
+        else:
+            return jsonify({"error": "Model not loaded"}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Medical institution search endpoint
 @bp.route('/find_hospitals', methods=['POST'])
 def find_hospitals():
-  """
-  Endpoint to receive location and return nearby medical institutions.
+    """
+    Endpoint to receive location and return nearby medical institutions.
 
-  Returns:
-      JSON: List of nearby medical institutions in JSON format.
-  """
-  try:
-    data = request.get_json()
-    location = data['location']
+    Returns:
+        JSON: List of nearby medical institutions in JSON format.
+    """
+    try:
+        data = request.get_json()
+        location = data['location']
 
-    # Call the dummy function to find nearby hospitals (replace with actual function later)
-    # hospitals = find_nearby_hospitals(location)
+        # Get nearby hospitals using the utility function
+        hospitals = find_nearby_hospitals(location)
 
-    # Currently, it returns a dummy list of hospitals
-    hospitals = [{"name": "Dummy Hospital A", "address": "Address A", "distance": 1.2},
-                {"name": "Dummy Hospital B", "address": "Address B", "distance": 2.5}]
-
-    return jsonify({"hospitals": hospitals})
-  except Exception as e:
-    return jsonify({"error": str(e)}), 500
+        return jsonify({"hospitals": hospitals})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
